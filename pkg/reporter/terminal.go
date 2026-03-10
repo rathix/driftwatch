@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/kennyandries/driftwatch/pkg/security"
 	"github.com/kennyandries/driftwatch/pkg/types"
 )
 
@@ -17,7 +18,7 @@ func NewTerminalReporter(w io.Writer, color bool) *TerminalReporter {
 }
 
 func (tr *TerminalReporter) Report(results []types.DriftResult) error {
-	inSync, drifted, missing := 0, 0, 0
+	inSync, drifted, missing, extra := 0, 0, 0, 0
 
 	for _, result := range results {
 		switch result.Status {
@@ -43,16 +44,23 @@ func (tr *TerminalReporter) Report(results []types.DriftResult) error {
 			if result.FluxStatus != nil {
 				fmt.Fprintf(tr.w, "  Flux: Ready=%v, Suspended=%v\n", result.FluxStatus.Ready, result.FluxStatus.Suspended)
 			}
+
+		case types.StatusExtra:
+			extra++
+			fmt.Fprintf(tr.w, "[WARNING] EXTRA %s [%s]\n", result.ID, result.Severity)
+			if result.FluxStatus != nil {
+				fmt.Fprintf(tr.w, "  Flux: Ready=%v, Suspended=%v\n", result.FluxStatus.Ready, result.FluxStatus.Suspended)
+			}
 		}
 	}
 
-	total := inSync + drifted + missing
-	fmt.Fprintf(tr.w, "\nSummary: %d total, %d in sync, %d drifted, %d missing\n",
-		total, inSync, drifted, missing)
+	total := inSync + drifted + missing + extra
+	fmt.Fprintf(tr.w, "\nSummary: %d total, %d in sync, %d drifted, %d missing, %d extra\n",
+		total, inSync, drifted, missing, extra)
 
 	return nil
 }
 
 func sanitizeOutput(s string) string {
-	return string([]rune(s))
+	return security.SanitizeString(s)
 }

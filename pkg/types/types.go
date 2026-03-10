@@ -56,10 +56,10 @@ const (
 )
 
 type ResourceIdentifier struct {
-	APIVersion string
-	Kind       string
-	Namespace  string
-	Name       string
+	APIVersion string `json:"api_version"`
+	Kind       string `json:"kind"`
+	Namespace  string `json:"namespace"`
+	Name       string `json:"name"`
 }
 
 func (r ResourceIdentifier) String() string {
@@ -67,46 +67,46 @@ func (r ResourceIdentifier) String() string {
 }
 
 type FluxRef struct {
-	Kind      string
-	Name      string
-	Namespace string
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type FluxStatus struct {
-	Ready          bool
-	Suspended      bool
-	LastAppliedRev string
-	ExpectedRev    string
-	Conditions     []string
+	Ready          bool     `json:"ready"`
+	Suspended      bool     `json:"suspended"`
+	LastAppliedRev string   `json:"last_applied_rev"`
+	ExpectedRev    string   `json:"expected_rev"`
+	Conditions     []string `json:"conditions"`
 }
 
 type SourceInfo struct {
-	Type    SourceType
-	Path    string
-	FluxRef *FluxRef
+	Type    SourceType `json:"type"`
+	Path    string     `json:"path"`
+	FluxRef *FluxRef   `json:"flux_ref,omitempty"`
 }
 
 type ResourcePair struct {
-	ID       ResourceIdentifier
-	Source   SourceInfo
-	Expected *unstructured.Unstructured
-	Live     *unstructured.Unstructured
+	ID       ResourceIdentifier         `json:"id"`
+	Source   SourceInfo                  `json:"source"`
+	Expected *unstructured.Unstructured `json:"expected,omitempty"`
+	Live     *unstructured.Unstructured `json:"live,omitempty"`
 }
 
 type FieldDiff struct {
-	Path     string
-	Expected string
-	Actual   string
-	Severity Severity
+	Path     string   `json:"path"`
+	Expected string   `json:"expected"`
+	Actual   string   `json:"actual"`
+	Severity Severity `json:"severity"`
 }
 
 type DriftResult struct {
-	ID         ResourceIdentifier
-	Source     SourceInfo
-	Status     DriftStatus
-	Diffs      []FieldDiff
-	Severity   Severity
-	FluxStatus *FluxStatus
+	ID         ResourceIdentifier `json:"id"`
+	Source     SourceInfo         `json:"source"`
+	Status     DriftStatus        `json:"status"`
+	Diffs      []FieldDiff        `json:"diffs,omitempty"`
+	Severity   Severity           `json:"severity"`
+	FluxStatus *FluxStatus        `json:"flux_status,omitempty"`
 }
 
 func (d DriftResult) ExceedsThreshold(threshold Severity) bool {

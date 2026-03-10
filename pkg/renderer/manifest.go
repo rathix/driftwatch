@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -46,7 +47,10 @@ func (m *ManifestRenderer) Render(ctx context.Context, path string) ([]*unstruct
 		obj := &unstructured.Unstructured{}
 		err := decoder.Decode(obj)
 		if err != nil {
-			break
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("decoding: %w", err)
 		}
 
 		// Skip documents without apiVersion/kind

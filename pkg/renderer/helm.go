@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 
 	"helm.sh/helm/v3/pkg/action"
@@ -68,7 +69,10 @@ func (h *HelmRenderer) Render(ctx context.Context, chartPath string) ([]*unstruc
 	for {
 		obj := &unstructured.Unstructured{}
 		if err := decoder.Decode(obj); err != nil {
-			break
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("decoding: %w", err)
 		}
 		if obj.GetAPIVersion() == "" || obj.GetKind() == "" {
 			continue

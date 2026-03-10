@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,13 +53,17 @@ var allowedKeys = map[string]bool{
 
 // Load reads and parses a YAML config file with strict unknown-key validation
 func Load(configPath string) (*Config, error) {
+	info, err := os.Stat(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat config file: %w", err)
+	}
+	if info.Size() > int64(maxConfigSize) {
+		return nil, fmt.Errorf("config file exceeds maximum size of %d bytes", maxConfigSize)
+	}
+
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	if len(data) > maxConfigSize {
-		return nil, fmt.Errorf("config file exceeds maximum size of %d bytes", maxConfigSize)
 	}
 
 	// Check for unknown keys by unmarshaling to map first
@@ -80,7 +85,24 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	applyDefaults(&cfg)
+
+	// Validate source paths relative to config file directory
+	configDir := filepath.Dir(configPath)
+	if err := cfg.ValidateSourcePaths(configDir); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
+}
+
+// ValidateSourcePaths validates that all source paths are safe relative to repoRoot.
+func (c *Config) ValidateSourcePaths(repoRoot string) error {
+	for _, src := range c.Sources {
+		if err := ValidatePath(src.Path, repoRoot); err != nil {
+			return fmt.Errorf("invalid source path %q: %w", src.Path, err)
+		}
+	}
+	return nil
 }
 
 func applyDefaults(cfg *Config) {

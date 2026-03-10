@@ -21,16 +21,6 @@ var (
 		Version:  "v2",
 		Resource: "helmreleases",
 	}
-	gitRepoGVR = schema.GroupVersionResource{
-		Group:    "source.toolkit.fluxcd.io",
-		Version:  "v1",
-		Resource: "gitrepositories",
-	}
-	_ = schema.GroupVersionResource{
-		Group:    "source.toolkit.fluxcd.io",
-		Version:  "v1",
-		Resource: "helmrepositories",
-	}
 )
 
 // Enricher overlays Flux status onto DriftResults.
@@ -135,16 +125,6 @@ func (e *Enricher) buildKustomizationMap(ctx context.Context) map[string]*unstru
 	return m
 }
 
-func (e *Enricher) buildNameMap(list *unstructured.UnstructuredList) map[string]*unstructured.Unstructured {
-	m := make(map[string]*unstructured.Unstructured)
-	for i := range list.Items {
-		obj := &list.Items[i]
-		key := obj.GetNamespace() + "/" + obj.GetName()
-		m[key] = obj
-	}
-	return m
-}
-
 func (e *Enricher) matchesKustomizationPath(kustomMap map[string]*unstructured.Unstructured, path string) *unstructured.Unstructured {
 	for _, obj := range kustomMap {
 		p, _, _ := unstructured.NestedString(obj.Object, "spec", "path")
@@ -155,18 +135,3 @@ func (e *Enricher) matchesKustomizationPath(kustomMap map[string]*unstructured.U
 	return nil
 }
 
-// listGitRepos fetches GitRepositories (used for future source enrichment).
-func (e *Enricher) listGitRepos(ctx context.Context) (*unstructured.UnstructuredList, error) {
-	return e.Client.Resource(gitRepoGVR).Namespace("").List(ctx, metav1.ListOptions{})
-}
-
-// buildNameMapFromList is an exported helper for testing.
-func buildNameMapFromList(list *unstructured.UnstructuredList) map[string]*unstructured.Unstructured {
-	m := make(map[string]*unstructured.Unstructured)
-	for i := range list.Items {
-		obj := &list.Items[i]
-		key := obj.GetNamespace() + "/" + obj.GetName()
-		m[key] = obj
-	}
-	return m
-}

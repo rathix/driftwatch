@@ -22,6 +22,7 @@ type jsonSummary struct {
 	InSync  int `json:"in_sync"`
 	Drifted int `json:"drifted"`
 	Missing int `json:"missing"`
+	Extra   int `json:"extra"`
 }
 
 type jsonOutput struct {
@@ -35,7 +36,7 @@ func NewJSONReporter(w io.Writer) *JSONReporter {
 }
 
 func (jr *JSONReporter) Report(results []types.DriftResult) error {
-	inSync, drifted, missing := 0, 0, 0
+	inSync, drifted, missing, extra := 0, 0, 0, 0
 
 	for _, result := range results {
 		switch result.Status {
@@ -45,6 +46,8 @@ func (jr *JSONReporter) Report(results []types.DriftResult) error {
 			drifted++
 		case types.StatusMissing:
 			missing++
+		case types.StatusExtra:
+			extra++
 		}
 	}
 
@@ -59,6 +62,7 @@ func (jr *JSONReporter) Report(results []types.DriftResult) error {
 			InSync:  inSync,
 			Drifted: drifted,
 			Missing: missing,
+			Extra:   extra,
 		},
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -39,7 +40,10 @@ func (k *KustomizeRenderer) Render(ctx context.Context, path string) ([]*unstruc
 	for {
 		obj := &unstructured.Unstructured{}
 		if err := decoder.Decode(obj); err != nil {
-			break
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("decoding: %w", err)
 		}
 
 		if obj.GetAPIVersion() == "" || obj.GetKind() == "" {
