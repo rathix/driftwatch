@@ -207,24 +207,22 @@ var scanCmd = &cobra.Command{
 		// 8b. Extras detection
 		detectExtras, _ := cmd.Flags().GetBool("detect-extras")
 		if detectExtras && dynClient != nil {
-			excludeKinds := []string{"Event", "Pod", "ReplicaSet", "Endpoints", "EndpointSlice", "ControllerRevision", "Lease"}
-			ignoreNS := []string{"kube-system", "kube-public", "kube-node-lease", "default"}
+			// Use config values if available, otherwise use defaults
+			extrasExclude := config.DefaultExtrasExclude()
+			ignoreNS := config.DefaultExtrasIgnoreNamespaces()
 			if cfg != nil {
-				if len(cfg.Extras.Exclude) > 0 {
-					excludeKinds = nil
-					for _, e := range cfg.Extras.Exclude {
-						if k, ok := e["kind"]; ok {
-							excludeKinds = append(excludeKinds, k)
-						}
-					}
-				}
-				if len(cfg.Extras.IgnoreNamespaces) > 0 {
-					ignoreNS = cfg.Extras.IgnoreNamespaces
+				extrasExclude = cfg.Extras.Exclude
+				ignoreNS = cfg.Extras.IgnoreNamespaces
+			}
+			var excludeKinds []string
+			for _, e := range extrasExclude {
+				if k, ok := e["kind"]; ok {
+					excludeKinds = append(excludeKinds, k)
 				}
 			}
 
 			detector := &extras.Detector{
-				InventoryChecker: &extras.FluxInventoryChecker{Client: dynClient},
+				InventoryChecker: &extras.FluxInventoryChecker{Client: dynClient, Stderr: os.Stderr},
 				NamespaceScanner: &extras.NamespaceScanner{
 					Client:        dynClient,
 					ExcludeKinds:  excludeKinds,

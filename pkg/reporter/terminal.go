@@ -49,18 +49,18 @@ func (tr *TerminalReporter) Report(results []types.DriftResult) error {
 		case types.StatusExtra:
 			extra++
 			severity := result.Severity.String()
-			layer := ""
 			switch result.DetectionLayer {
 			case types.LayerFluxInventory:
-				layer = "In Flux inventory but not in Git sources"
+				fmt.Fprintf(tr.w, "[%s] EXTRA: %s/%s (%s)\n", strings.ToUpper(severity), result.ID.Namespace, result.ID.Name, result.ID.Kind)
+				fmt.Fprintf(tr.w, "  In Flux inventory but not in Git sources\n")
 			case types.LayerNamespaceScan:
-				layer = "In managed namespace but not in Git or Flux inventory"
+				fmt.Fprintf(tr.w, "[%s] EXTRA: %s/%s (%s)\n", strings.ToUpper(severity), result.ID.Namespace, result.ID.Name, result.ID.Kind)
+				fmt.Fprintf(tr.w, "  In managed namespace but not in Git or Flux inventory\n")
 			case types.LayerNamespaceAudit:
-				layer = "No Flux Kustomization or HelmRelease targets this namespace"
-			}
-			fmt.Fprintf(tr.w, "[%s] EXTRA: %s\n", strings.ToUpper(severity), result.ID)
-			if layer != "" {
-				fmt.Fprintf(tr.w, "  %s\n", layer)
+				fmt.Fprintf(tr.w, "[%s] UNMANAGED NAMESPACE: %s\n", strings.ToUpper(severity), result.ID.Name)
+				fmt.Fprintf(tr.w, "  No Flux Kustomization or HelmRelease targets this namespace\n")
+			default:
+				fmt.Fprintf(tr.w, "[%s] EXTRA: %s\n", strings.ToUpper(severity), result.ID)
 			}
 		}
 	}

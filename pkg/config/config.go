@@ -132,22 +132,32 @@ func applyDefaults(cfg *Config) {
 	}
 
 	if len(cfg.Extras.Exclude) == 0 {
-		cfg.Extras.Exclude = []map[string]string{
-			{"kind": "Event"},
-			{"kind": "Pod"},
-			{"kind": "ReplicaSet"},
-			{"kind": "Endpoints"},
-			{"kind": "EndpointSlice"},
-			{"kind": "ControllerRevision"},
-			{"kind": "Lease"},
-		}
+		cfg.Extras.Exclude = DefaultExtrasExclude()
 	}
 	if len(cfg.Extras.IgnoreNamespaces) == 0 {
-		cfg.Extras.IgnoreNamespaces = []string{
-			"kube-system",
-			"kube-public",
-			"kube-node-lease",
-			"default",
-		}
+		cfg.Extras.IgnoreNamespaces = DefaultExtrasIgnoreNamespaces()
+	}
+}
+
+// DefaultExtrasExclude returns the default list of resource kinds to exclude from extras detection.
+func DefaultExtrasExclude() []map[string]string {
+	return []map[string]string{
+		{"kind": "Event"},
+		{"kind": "Pod"},
+		{"kind": "ReplicaSet"},
+		{"kind": "Endpoints"},
+		{"kind": "EndpointSlice"},
+		{"kind": "ControllerRevision"},
+		{"kind": "Lease"},
+	}
+}
+
+// DefaultExtrasIgnoreNamespaces returns the default list of namespaces to ignore in extras detection.
+func DefaultExtrasIgnoreNamespaces() []string {
+	return []string{
+		"kube-system",
+		"kube-public",
+		"kube-node-lease",
+		"default",
 	}
 }

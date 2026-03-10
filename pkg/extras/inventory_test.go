@@ -104,6 +104,10 @@ func TestParseInventoryID(t *testing.T) {
 			&types.ResourceIdentifier{APIVersion: "v1", Kind: "ConfigMap", Namespace: "default", Name: "nginx"},
 		},
 		{
+			"default_my_app_apps_Deployment", "v1",
+			&types.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "default", Name: "my_app"},
+		},
+		{
 			"too_short", "v1",
 			nil,
 		},

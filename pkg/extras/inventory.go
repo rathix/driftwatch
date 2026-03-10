@@ -2,6 +2,8 @@ package extras
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"strings"
 
 	"github.com/kennyandries/driftwatch/pkg/types"
@@ -23,6 +25,7 @@ var (
 // FluxInventoryChecker finds resources in Flux inventory that aren't in the expected set.
 type FluxInventoryChecker struct {
 	Client dynamic.Interface
+	Stderr io.Writer // optional: for warning messages about API errors
 }
 
 // Check reads all Flux Kustomization and HelmRelease inventories and returns
@@ -32,21 +35,25 @@ func (c *FluxInventoryChecker) Check(ctx context.Context, expectedSet map[string
 	var results []types.DriftResult
 
 	// Check Kustomization inventories
-	ksList, err := c.Client.Resource(kustomizationGVR).Namespace("").List(ctx, metav1.ListOptions{})
-	if err == nil {
+	ksList, ksErr := c.Client.Resource(kustomizationGVR).Namespace("").List(ctx, metav1.ListOptions{})
+	if ksErr == nil {
 		for _, ks := range ksList.Items {
 			extras := c.checkInventory(&ks, expectedSet)
 			results = append(results, extras...)
 		}
+	} else {
+		c.warnf("could not list Flux Kustomizations: %v\n", ksErr)
 	}
 
 	// Check HelmRelease inventories
-	hrList, err := c.Client.Resource(helmReleaseGVR).Namespace("").List(ctx, metav1.ListOptions{})
-	if err == nil {
+	hrList, hrErr := c.Client.Resource(helmReleaseGVR).Namespace("").List(ctx, metav1.ListOptions{})
+	if hrErr == nil {
 		for _, hr := range hrList.Items {
 			extras := c.checkInventory(&hr, expectedSet)
 			results = append(results, extras...)
 		}
+	} else {
+		c.warnf("could not list Flux HelmReleases: %v\n", hrErr)
 	}
 
 	return results, nil
@@ -101,16 +108,22 @@ func (c *FluxInventoryChecker) checkInventory(obj *unstructured.Unstructured, ex
 
 // parseInventoryID parses Flux inventory ID format: "namespace_name_group_Kind"
 // Example: "default_nginx_apps_Deployment"
+// Parses from both ends to handle names containing underscores.
 // version comes from the "v" field of the inventory entry.
 func parseInventoryID(id, version string) *types.ResourceIdentifier {
 	parts := strings.Split(id, "_")
 	if len(parts) < 4 {
 		return nil
 	}
+
 	namespace := parts[0]
-	name := parts[1]
-	group := parts[2]
-	kind := parts[3]
+	kind := parts[len(parts)-1]
+	group := parts[len(parts)-2]
+	name := strings.Join(parts[1:len(parts)-2], "_")
+
+	if name == "" {
+		return nil
+	}
 
 	var apiVersion string
 	if group == "" {
@@ -124,5 +137,11 @@ func parseInventoryID(id, version string) *types.ResourceIdentifier {
 		Kind:       kind,
 		Namespace:  namespace,
 		Name:       name,
+	}
+}
+
+func (c *FluxInventoryChecker) warnf(format string, args ...interface{}) {
+	if c.Stderr != nil {
+		fmt.Fprintf(c.Stderr, "Warning: "+format, args...)
 	}
 }
