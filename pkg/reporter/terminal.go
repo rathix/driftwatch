@@ -3,6 +3,7 @@ package reporter
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/kennyandries/driftwatch/pkg/security"
 	"github.com/kennyandries/driftwatch/pkg/types"
@@ -47,9 +48,19 @@ func (tr *TerminalReporter) Report(results []types.DriftResult) error {
 
 		case types.StatusExtra:
 			extra++
-			fmt.Fprintf(tr.w, "[WARNING] EXTRA %s [%s]\n", result.ID, result.Severity)
-			if result.FluxStatus != nil {
-				fmt.Fprintf(tr.w, "  Flux: Ready=%v, Suspended=%v\n", result.FluxStatus.Ready, result.FluxStatus.Suspended)
+			severity := result.Severity.String()
+			layer := ""
+			switch result.DetectionLayer {
+			case types.LayerFluxInventory:
+				layer = "In Flux inventory but not in Git sources"
+			case types.LayerNamespaceScan:
+				layer = "In managed namespace but not in Git or Flux inventory"
+			case types.LayerNamespaceAudit:
+				layer = "No Flux Kustomization or HelmRelease targets this namespace"
+			}
+			fmt.Fprintf(tr.w, "[%s] EXTRA: %s\n", strings.ToUpper(severity), result.ID)
+			if layer != "" {
+				fmt.Fprintf(tr.w, "  %s\n", layer)
 			}
 		}
 	}

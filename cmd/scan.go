@@ -9,6 +9,7 @@ import (
 	"github.com/kennyandries/driftwatch/pkg/config"
 	"github.com/kennyandries/driftwatch/pkg/differ"
 	disc "github.com/kennyandries/driftwatch/pkg/discovery"
+	"github.com/kennyandries/driftwatch/pkg/extras"
 	"github.com/kennyandries/driftwatch/pkg/fetcher"
 	"github.com/kennyandries/driftwatch/pkg/flux"
 	"github.com/kennyandries/driftwatch/pkg/pipeline"
@@ -203,6 +204,46 @@ var scanCmd = &cobra.Command{
 			}
 		}
 
+		// 8b. Extras detection
+		detectExtras, _ := cmd.Flags().GetBool("detect-extras")
+		if detectExtras && dynClient != nil {
+			excludeKinds := []string{"Event", "Pod", "ReplicaSet", "Endpoints", "EndpointSlice", "ControllerRevision", "Lease"}
+			ignoreNS := []string{"kube-system", "kube-public", "kube-node-lease", "default"}
+			if cfg != nil {
+				if len(cfg.Extras.Exclude) > 0 {
+					excludeKinds = nil
+					for _, e := range cfg.Extras.Exclude {
+						if k, ok := e["kind"]; ok {
+							excludeKinds = append(excludeKinds, k)
+						}
+					}
+				}
+				if len(cfg.Extras.IgnoreNamespaces) > 0 {
+					ignoreNS = cfg.Extras.IgnoreNamespaces
+				}
+			}
+
+			detector := &extras.Detector{
+				InventoryChecker: &extras.FluxInventoryChecker{Client: dynClient},
+				NamespaceScanner: &extras.NamespaceScanner{
+					Client:        dynClient,
+					ExcludeKinds:  excludeKinds,
+					ResourceTypes: commonResourceTypes(),
+				},
+				NamespaceAuditor: &extras.NamespaceAuditor{
+					Client:           dynClient,
+					IgnoreNamespaces: ignoreNS,
+				},
+			}
+
+			extrasResults, extrasErr := detector.Detect(context.Background(), allResults)
+			if extrasErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: extras detection error: %v\n", extrasErr)
+			} else {
+				allResults = append(allResults, extrasResults...)
+			}
+		}
+
 		// 9. Report
 		var rep reporter.Reporter
 		switch output {
@@ -233,6 +274,24 @@ func (n *noopFetcher) Get(_ context.Context, _ types.ResourceIdentifier) (*unstr
 	return nil, nil
 }
 
+func commonResourceTypes() []schema.GroupVersionResource {
+	return []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "configmaps"},
+		{Group: "", Version: "v1", Resource: "services"},
+		{Group: "", Version: "v1", Resource: "serviceaccounts"},
+		{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+		{Group: "apps", Version: "v1", Resource: "daemonsets"},
+		{Group: "apps", Version: "v1", Resource: "statefulsets"},
+		{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		{Group: "batch", Version: "v1", Resource: "jobs"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+		{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"},
+		{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings"},
+	}
+}
+
 func init() {
 	scanCmd.Flags().String("config", "./driftwatch.yaml", "Config file path")
 	scanCmd.Flags().String("kubeconfig", "", "Kubeconfig path (defaults to ~/.kube/config)")
@@ -242,5 +301,6 @@ func init() {
 	scanCmd.Flags().String("output", "terminal", "Output format: terminal, json")
 	scanCmd.Flags().String("fail-on", "critical", "Severity threshold: critical, warning, info")
 	scanCmd.Flags().String("flux", "auto", "Flux enrichment: auto, enabled, disabled")
+	scanCmd.Flags().Bool("detect-extras", false, "Detect extra resources not in Git")
 	rootCmd.AddCommand(scanCmd)
 }
