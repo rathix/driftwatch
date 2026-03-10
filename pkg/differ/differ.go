@@ -143,7 +143,10 @@ func (d *Differ) compareSlices(expected, live []interface{}, prefix string) []ty
 	if isNamedList(expected) && isNamedList(live) {
 		return d.compareNamedSlices(expected, live, prefix)
 	}
+	return d.compareSlicesByIndex(expected, live, prefix)
+}
 
+func (d *Differ) compareSlicesByIndex(expected, live []interface{}, prefix string) []types.FieldDiff {
 	var diffs []types.FieldDiff
 	for i := 0; i < len(expected); i++ {
 		path := fmt.Sprintf("%s.%d", prefix, i)
@@ -178,27 +181,59 @@ func isNamedList(items []interface{}) bool {
 	return true
 }
 
-// compareNamedSlices matches slice items by their "name" field rather than index.
+// sliceKey builds a composite lookup key for a map item using "name" and "kind" fields.
+func sliceKey(m map[string]interface{}) string {
+	name, _ := m["name"].(string)
+	kind, _ := m["kind"].(string)
+	if kind != "" {
+		return kind + "/" + name
+	}
+	return name
+}
+
+// hasUniqueKeys returns true if all items produce distinct keys via sliceKey.
+func hasUniqueKeys(items []interface{}) bool {
+	seen := map[string]int{}
+	for _, item := range items {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		seen[sliceKey(m)]++
+	}
+	for _, count := range seen {
+		if count > 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// compareNamedSlices matches slice items by composite key (kind+name or name) rather than index.
 func (d *Differ) compareNamedSlices(expected, live []interface{}, prefix string) []types.FieldDiff {
+	// If keys aren't unique even with composite key, fall back to index comparison
+	if !hasUniqueKeys(expected) || !hasUniqueKeys(live) {
+		return d.compareSlicesByIndex(expected, live, prefix)
+	}
+
 	var diffs []types.FieldDiff
 
-	liveByName := map[string]map[string]interface{}{}
+	liveByKey := map[string]map[string]interface{}{}
 	for _, item := range live {
 		m := item.(map[string]interface{})
-		name, _ := m["name"].(string)
-		liveByName[name] = m
+		liveByKey[sliceKey(m)] = m
 	}
 
 	for i, item := range expected {
 		expectedMap := item.(map[string]interface{})
-		name, _ := expectedMap["name"].(string)
+		key := sliceKey(expectedMap)
 		path := fmt.Sprintf("%s.%d", prefix, i)
 
-		liveMap, exists := liveByName[name]
+		liveMap, exists := liveByKey[key]
 		if !exists {
 			diffs = append(diffs, types.FieldDiff{
-				Path:     path + ".name",
-				Expected: name,
+				Path:     path,
+				Expected: key,
 				Actual:   "<missing>",
 				Severity: classifyField(prefix, d.severityRules),
 			})
