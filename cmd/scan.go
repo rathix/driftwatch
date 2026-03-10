@@ -249,13 +249,23 @@ var scanCmd = &cobra.Command{
 					Client:           dynClient,
 					IgnoreNamespaces: ignoreNS,
 				},
+				HelmNamespaceResolver: &extras.HelmNamespaceResolver{Client: dynClient},
+				IgnoreNamespaces:      ignoreNS,
 			}
 
-			extrasResults, extrasErr := detector.Detect(context.Background(), allResults)
+			extrasResults, skippedSummary, extrasErr := detector.Detect(context.Background(), allResults)
 			if extrasErr != nil {
 				fmt.Fprintf(os.Stderr, "Warning: extras detection error: %v\n", extrasErr)
 			} else {
 				allResults = append(allResults, extrasResults...)
+				if skippedSummary != nil {
+					if skippedSummary.HelmManagedResources > 0 {
+						fmt.Fprintf(os.Stderr, "Skipped %d Helm-managed resources (inventory items from HelmReleases)\n", skippedSummary.HelmManagedResources)
+					}
+					if skippedSummary.KubeDefaultResources > 0 {
+						fmt.Fprintf(os.Stderr, "Skipped %d Kubernetes auto-created resources (kube-root-ca.crt, default ServiceAccount)\n", skippedSummary.KubeDefaultResources)
+					}
+				}
 			}
 		}
 

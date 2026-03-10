@@ -109,6 +109,8 @@ func (c *FluxInventoryChecker) checkInventory(obj *unstructured.Unstructured, ex
 // parseInventoryID parses Flux inventory ID format: "namespace_name_group_Kind"
 // Example: "default_nginx_apps_Deployment"
 // Parses from both ends to handle names containing underscores.
+// Flux encodes colons in names as double underscores ("__"), e.g.
+// "system:kube-vip-role" becomes "system__kube-vip-role" in the ID.
 // version comes from the "v" field of the inventory entry.
 func parseInventoryID(id, version string) *types.ResourceIdentifier {
 	parts := strings.Split(id, "_")
@@ -119,7 +121,7 @@ func parseInventoryID(id, version string) *types.ResourceIdentifier {
 	namespace := parts[0]
 	kind := parts[len(parts)-1]
 	group := parts[len(parts)-2]
-	name := strings.Join(parts[1:len(parts)-2], "_")
+	name := strings.ReplaceAll(strings.Join(parts[1:len(parts)-2], "_"), "__", ":")
 
 	if name == "" {
 		return nil

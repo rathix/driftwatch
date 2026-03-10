@@ -108,6 +108,15 @@ func TestParseInventoryID(t *testing.T) {
 			&types.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "default", Name: "my_app"},
 		},
 		{
+			// Flux encodes colons as double underscores
+			"_system__kube-vip-role_rbac.authorization.k8s.io_ClusterRole", "v1",
+			&types.ResourceIdentifier{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole", Namespace: "", Name: "system:kube-vip-role"},
+		},
+		{
+			"_cert-manager-controller-approve__cert-manager-io_rbac.authorization.k8s.io_ClusterRole", "v1",
+			&types.ResourceIdentifier{APIVersion: "rbac.authorization.k8s.io/v1", Kind: "ClusterRole", Namespace: "", Name: "cert-manager-controller-approve:cert-manager-io"},
+		},
+		{
 			"too_short", "v1",
 			nil,
 		},

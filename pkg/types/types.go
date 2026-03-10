@@ -112,6 +112,12 @@ func (d DetectionLayer) String() string {
 	return string(d)
 }
 
+// SkippedSummary tracks resources filtered out during extras detection.
+type SkippedSummary struct {
+	HelmManagedResources int `json:"helm_managed_resources"`
+	KubeDefaultResources int `json:"kube_default_resources"`
+}
+
 type DriftResult struct {
 	ID             ResourceIdentifier `json:"id"`
 	Source         SourceInfo         `json:"source"`
