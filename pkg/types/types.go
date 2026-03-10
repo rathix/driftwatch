@@ -100,13 +100,26 @@ type FieldDiff struct {
 	Severity Severity `json:"severity"`
 }
 
+type DetectionLayer string
+
+const (
+	LayerFluxInventory  DetectionLayer = "flux_inventory"
+	LayerNamespaceScan  DetectionLayer = "namespace_scan"
+	LayerNamespaceAudit DetectionLayer = "namespace_audit"
+)
+
+func (d DetectionLayer) String() string {
+	return string(d)
+}
+
 type DriftResult struct {
-	ID         ResourceIdentifier `json:"id"`
-	Source     SourceInfo         `json:"source"`
-	Status     DriftStatus        `json:"status"`
-	Diffs      []FieldDiff        `json:"diffs,omitempty"`
-	Severity   Severity           `json:"severity"`
-	FluxStatus *FluxStatus        `json:"flux_status,omitempty"`
+	ID             ResourceIdentifier `json:"id"`
+	Source         SourceInfo         `json:"source"`
+	Status         DriftStatus        `json:"status"`
+	Diffs          []FieldDiff        `json:"diffs,omitempty"`
+	Severity       Severity           `json:"severity"`
+	FluxStatus     *FluxStatus        `json:"flux_status,omitempty"`
+	DetectionLayer DetectionLayer     `json:"detection_layer,omitempty"`
 }
 
 func (d DriftResult) ExceedsThreshold(threshold Severity) bool {

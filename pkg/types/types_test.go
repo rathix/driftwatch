@@ -1,8 +1,6 @@
 package types
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestResourceIdentifier_String(t *testing.T) {
 	id := ResourceIdentifier{
@@ -26,6 +24,22 @@ func TestResourceIdentifier_String_ClusterScoped(t *testing.T) {
 	expected := "rbac.authorization.k8s.io/v1/ClusterRole//admin"
 	if id.String() != expected {
 		t.Errorf("got %q, want %q", id.String(), expected)
+	}
+}
+
+func TestDetectionLayer_String(t *testing.T) {
+	tests := []struct {
+		layer DetectionLayer
+		want  string
+	}{
+		{LayerFluxInventory, "flux_inventory"},
+		{LayerNamespaceScan, "namespace_scan"},
+		{LayerNamespaceAudit, "namespace_audit"},
+	}
+	for _, tt := range tests {
+		if got := tt.layer.String(); got != tt.want {
+			t.Errorf("got %q, want %q", got, tt.want)
+		}
 	}
 }
 

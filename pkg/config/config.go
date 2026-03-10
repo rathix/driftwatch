@@ -11,12 +11,18 @@ import (
 const maxConfigSize = 1024 * 1024 // 1MB
 
 type Config struct {
-	Sources []Source   `yaml:"sources"`
-	Ignore  Ignore     `yaml:"ignore"`
+	Sources  []Source  `yaml:"sources"`
+	Ignore   Ignore    `yaml:"ignore"`
 	Severity Severity  `yaml:"severity"`
-	Cluster Cluster    `yaml:"cluster"`
-	Flux    Flux       `yaml:"flux"`
-	FailOn  string     `yaml:"failOn"`
+	Cluster  Cluster   `yaml:"cluster"`
+	Flux     Flux      `yaml:"flux"`
+	FailOn   string    `yaml:"failOn"`
+	Extras   Extras    `yaml:"extras"`
+}
+
+type Extras struct {
+	Exclude          []map[string]string `yaml:"exclude"`
+	IgnoreNamespaces []string            `yaml:"ignoreNamespaces"`
 }
 
 type Source struct {
@@ -49,6 +55,7 @@ var allowedKeys = map[string]bool{
 	"cluster": true,
 	"flux": true,
 	"failOn": true,
+	"extras": true,
 }
 
 // Load reads and parses a YAML config file with strict unknown-key validation
@@ -121,6 +128,26 @@ func applyDefaults(cfg *Config) {
 	if len(cfg.Ignore.Resources) == 0 {
 		cfg.Ignore.Resources = []map[string]string{
 			{"kind": "Secret"},
+		}
+	}
+
+	if len(cfg.Extras.Exclude) == 0 {
+		cfg.Extras.Exclude = []map[string]string{
+			{"kind": "Event"},
+			{"kind": "Pod"},
+			{"kind": "ReplicaSet"},
+			{"kind": "Endpoints"},
+			{"kind": "EndpointSlice"},
+			{"kind": "ControllerRevision"},
+			{"kind": "Lease"},
+		}
+	}
+	if len(cfg.Extras.IgnoreNamespaces) == 0 {
+		cfg.Extras.IgnoreNamespaces = []string{
+			"kube-system",
+			"kube-public",
+			"kube-node-lease",
+			"default",
 		}
 	}
 }
