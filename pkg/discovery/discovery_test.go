@@ -98,6 +98,46 @@ func TestDiscover_RejectsSymlinks(t *testing.T) {
 	}
 }
 
+func TestDiscover_DeduplicatesNestedKustomizeDirs(t *testing.T) {
+	root := t.TempDir()
+
+	kustomContent := "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - reloader/\n  - cert-manager/\n"
+
+	// Parent kustomization
+	infraDir := filepath.Join(root, "infrastructure")
+	must(t, os.MkdirAll(infraDir, 0o755))
+	must(t, os.WriteFile(filepath.Join(infraDir, "kustomization.yaml"), []byte(kustomContent), 0o644))
+
+	// Child kustomizations (nested under infrastructure/)
+	for _, sub := range []string{"reloader", "cert-manager"} {
+		subDir := filepath.Join(infraDir, sub)
+		must(t, os.MkdirAll(subDir, 0o755))
+		must(t, os.WriteFile(filepath.Join(subDir, "kustomization.yaml"), []byte(
+			"apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nresources:\n  - deploy.yaml\n",
+		), 0o644))
+	}
+
+	sources, err := Discover(root)
+	if err != nil {
+		t.Fatalf("Discover() error: %v", err)
+	}
+
+	// Should only find the parent kustomize dir, not the children.
+	var kustomizeSources []DiscoveredSource
+	for _, s := range sources {
+		if s.Type == "kustomize" {
+			kustomizeSources = append(kustomizeSources, s)
+		}
+	}
+
+	if len(kustomizeSources) != 1 {
+		t.Errorf("expected 1 kustomize source, got %d: %v", len(kustomizeSources), kustomizeSources)
+	}
+	if len(kustomizeSources) > 0 && kustomizeSources[0].Path != infraDir {
+		t.Errorf("expected kustomize path %s, got %s", infraDir, kustomizeSources[0].Path)
+	}
+}
+
 func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {

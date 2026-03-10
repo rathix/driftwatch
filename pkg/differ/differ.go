@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kennyandries/driftwatch/pkg/types"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Differ compares expected and live Kubernetes resources to detect drift.
@@ -121,11 +122,13 @@ func (d *Differ) compareValues(expected, live interface{}, path string) []types.
 		}}
 
 	default:
-		if formatValue(expected) != formatValue(live) {
+		expStr := formatValue(expected)
+		liveStr := formatValue(live)
+		if expStr != liveStr && !quantitiesEqual(expStr, liveStr) {
 			return []types.FieldDiff{{
 				Path:     path,
-				Expected: formatValue(expected),
-				Actual:   formatValue(live),
+				Expected: expStr,
+				Actual:   liveStr,
 				Severity: classifyField(path, d.severityRules),
 			}}
 		}
@@ -133,10 +136,15 @@ func (d *Differ) compareValues(expected, live interface{}, path string) []types.
 	}
 }
 
-// compareSlices does index-based comparison of two slices.
+// compareSlices compares two slices. For slices of maps with a "name" key,
+// it matches by name instead of index to avoid cascading false diffs when
+// Kubernetes injects extra items.
 func (d *Differ) compareSlices(expected, live []interface{}, prefix string) []types.FieldDiff {
-	var diffs []types.FieldDiff
+	if isNamedList(expected) && isNamedList(live) {
+		return d.compareNamedSlices(expected, live, prefix)
+	}
 
+	var diffs []types.FieldDiff
 	for i := 0; i < len(expected); i++ {
 		path := fmt.Sprintf("%s.%d", prefix, i)
 		if i >= len(live) {
@@ -149,6 +157,55 @@ func (d *Differ) compareSlices(expected, live []interface{}, prefix string) []ty
 			continue
 		}
 		diffs = append(diffs, d.compareValues(expected[i], live[i], path)...)
+	}
+	return diffs
+}
+
+// isNamedList returns true if all items are maps containing a "name" key.
+func isNamedList(items []interface{}) bool {
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		if _, hasName := m["name"]; !hasName {
+			return false
+		}
+	}
+	return true
+}
+
+// compareNamedSlices matches slice items by their "name" field rather than index.
+func (d *Differ) compareNamedSlices(expected, live []interface{}, prefix string) []types.FieldDiff {
+	var diffs []types.FieldDiff
+
+	liveByName := map[string]map[string]interface{}{}
+	for _, item := range live {
+		m := item.(map[string]interface{})
+		name, _ := m["name"].(string)
+		liveByName[name] = m
+	}
+
+	for i, item := range expected {
+		expectedMap := item.(map[string]interface{})
+		name, _ := expectedMap["name"].(string)
+		path := fmt.Sprintf("%s.%d", prefix, i)
+
+		liveMap, exists := liveByName[name]
+		if !exists {
+			diffs = append(diffs, types.FieldDiff{
+				Path:     path + ".name",
+				Expected: name,
+				Actual:   "<missing>",
+				Severity: classifyField(prefix, d.severityRules),
+			})
+			continue
+		}
+
+		diffs = append(diffs, d.compareObjects(expectedMap, liveMap, path)...)
 	}
 
 	return diffs
@@ -203,6 +260,19 @@ func redactSensitiveFields(obj map[string]interface{}, prefix string) {
 			redactSensitiveFields(nested, prefix+k+".")
 		}
 	}
+}
+
+// quantitiesEqual returns true if both strings parse as equal Kubernetes resource quantities.
+func quantitiesEqual(a, b string) bool {
+	qa, errA := resource.ParseQuantity(a)
+	if errA != nil {
+		return false
+	}
+	qb, errB := resource.ParseQuantity(b)
+	if errB != nil {
+		return false
+	}
+	return qa.Cmp(qb) == 0
 }
 
 func formatValue(v interface{}) string {

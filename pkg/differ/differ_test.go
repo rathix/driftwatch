@@ -203,3 +203,131 @@ func TestSeverity_ReplicaChange_IsWarning(t *testing.T) {
 		t.Errorf("expected SeverityWarning for replicas change, got %s", sev)
 	}
 }
+
+func TestDiff_QuantityNormalization(t *testing.T) {
+	d := NewDiffer(DefaultIgnoreFields(), DefaultSeverityRules())
+
+	tests := []struct {
+		name     string
+		expVal   interface{}
+		liveVal  interface{}
+		wantSync bool
+	}{
+		{"cpu 0.2 vs 200m", "0.2", "200m", true},
+		{"cpu 1000m vs 1", "1000m", "1", true},
+		{"memory 128Mi vs 128Mi", "128Mi", "128Mi", true},
+		{"different values", "100m", "200m", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := types.ResourcePair{
+				ID: types.ResourceIdentifier{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
+					Namespace:  "default",
+					Name:       "test",
+				},
+				Expected: &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"spec": map[string]interface{}{
+							"template": map[string]interface{}{
+								"spec": map[string]interface{}{
+									"containers": []interface{}{
+										map[string]interface{}{
+											"name": "app",
+											"resources": map[string]interface{}{
+												"requests": map[string]interface{}{
+													"cpu": tt.expVal,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Live: &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"spec": map[string]interface{}{
+							"template": map[string]interface{}{
+								"spec": map[string]interface{}{
+									"containers": []interface{}{
+										map[string]interface{}{
+											"name": "app",
+											"resources": map[string]interface{}{
+												"requests": map[string]interface{}{
+													"cpu": tt.liveVal,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			result := d.Diff(pair)
+			if tt.wantSync && result.Status != types.StatusInSync {
+				t.Errorf("expected InSync, got %s with diffs: %v", result.Status, result.Diffs)
+			}
+			if !tt.wantSync && result.Status == types.StatusInSync {
+				t.Errorf("expected drift, got InSync")
+			}
+		})
+	}
+}
+
+func TestDiff_NamedSliceComparison(t *testing.T) {
+	d := NewDiffer(nil, nil)
+
+	// Expected has 2 env vars; live has an extra injected one at the start
+	pair := types.ResourcePair{
+		ID: types.ResourceIdentifier{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Namespace:  "default",
+			Name:       "test",
+		},
+		Expected: &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name": "app",
+							"env": []interface{}{
+								map[string]interface{}{"name": "FOO", "value": "bar"},
+								map[string]interface{}{"name": "BAZ", "value": "qux"},
+							},
+						},
+					},
+				},
+			},
+		},
+		Live: &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"containers": []interface{}{
+						map[string]interface{}{
+							"name": "app",
+							"env": []interface{}{
+								map[string]interface{}{"name": "STAKATER_HOMEPAGE_CONFIGMAP", "value": "injected"},
+								map[string]interface{}{"name": "FOO", "value": "bar"},
+								map[string]interface{}{"name": "BAZ", "value": "qux"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := d.Diff(pair)
+
+	if result.Status != types.StatusInSync {
+		t.Errorf("expected InSync (injected env should not cause drift), got %s with diffs: %v", result.Status, result.Diffs)
+	}
+}

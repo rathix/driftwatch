@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -65,6 +66,9 @@ func Discover(root string) ([]DiscoveredSource, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Filter out nested kustomize dirs: keep only top-level roots.
+	sources, kustomizeDirs = filterNestedKustomizeDirs(sources, kustomizeDirs)
 
 	// Pass 2: find standalone manifests.
 	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -161,6 +165,48 @@ func isKubernetesManifest(path string) bool {
 	}
 
 	return doc.APIVersion != "" && doc.Kind != ""
+}
+
+// filterNestedKustomizeDirs removes kustomize sources whose directory is a
+// subdirectory of another kustomize directory, and deduplicates by path.
+func filterNestedKustomizeDirs(sources []DiscoveredSource, kustomizeDirs map[string]bool) ([]DiscoveredSource, map[string]bool) {
+	// Sort kustomize dirs by length so parents come first.
+	dirs := make([]string, 0, len(kustomizeDirs))
+	for d := range kustomizeDirs {
+		dirs = append(dirs, d)
+	}
+	sort.Strings(dirs)
+
+	// Build set of top-level kustomize dirs only.
+	topLevel := map[string]bool{}
+	for _, d := range dirs {
+		nested := false
+		for parent := range topLevel {
+			if strings.HasPrefix(d, parent+string(filepath.Separator)) {
+				nested = true
+				break
+			}
+		}
+		if !nested {
+			topLevel[d] = true
+		}
+	}
+
+	// Rebuild sources: deduplicate by path and drop nested kustomize dirs.
+	seen := map[string]bool{}
+	var filtered []DiscoveredSource
+	for _, s := range sources {
+		if seen[s.Path] {
+			continue
+		}
+		if s.Type == "kustomize" && !topLevel[s.Path] {
+			continue
+		}
+		seen[s.Path] = true
+		filtered = append(filtered, s)
+	}
+
+	return filtered, topLevel
 }
 
 func readFileSafe(path string) ([]byte, error) {

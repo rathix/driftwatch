@@ -33,9 +33,9 @@ func TestDiscovery_FleetInfra(t *testing.T) {
 		}
 	}
 
-	// infrastructure, infrastructure/reloader, apps, apps/uptime-kuma
-	if kustomizeCount < 4 {
-		t.Errorf("expected at least 4 kustomize sources, got %d", kustomizeCount)
+	// After deduplication, only top-level kustomize roots remain: apps, infrastructure
+	if kustomizeCount < 2 {
+		t.Errorf("expected at least 2 kustomize sources, got %d", kustomizeCount)
 		for _, s := range sources {
 			t.Logf("  %s: %s", s.Type, s.Path)
 		}
