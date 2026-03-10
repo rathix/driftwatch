@@ -44,7 +44,12 @@ func NewEnricher(client dynamic.Interface) *Enricher {
 }
 
 // Available returns true if Flux CRDs are present (kustomizations can be listed).
-func (e *Enricher) Available(ctx context.Context) bool {
+func (e *Enricher) Available(ctx context.Context) (result bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			result = false
+		}
+	}()
 	_, err := e.Client.Resource(kustomizationGVR).Namespace("flux-system").List(ctx, metav1.ListOptions{})
 	return err == nil
 }
