@@ -160,6 +160,41 @@ flux:
   enabled: true  # or false to disable, auto-detected by default
 ```
 
+### Extras Detection
+
+Detect resources in the cluster that don't exist in Git — ensuring cluster state matches your IaC:
+
+```bash
+driftwatch scan ./manifests --detect-extras
+```
+
+Three detection layers run after the normal scan:
+
+| Layer | What it catches | Severity |
+|-|-|-|
+| Flux Inventory | Resources in Flux inventory but removed from Git (not pruned) | Critical |
+| Namespace Scan | Rogue `kubectl apply` in managed namespaces | Warning |
+| Namespace Audit | Entire namespaces not managed by any Flux resource | Warning |
+
+Configure exclusions in `driftwatch.yaml`:
+
+```yaml
+extras:
+  exclude:
+    - kind: Event
+    - kind: Pod
+    - kind: ReplicaSet
+    - kind: Endpoints
+    - kind: EndpointSlice
+    - kind: ControllerRevision
+    - kind: Lease
+  ignoreNamespaces:
+    - kube-system
+    - kube-public
+    - kube-node-lease
+    - default
+```
+
 ## CLI Reference
 
 ```
@@ -181,6 +216,7 @@ Scan Flags:
   --output        Output format: terminal, json (default: terminal)
   --fail-on       Severity threshold for exit code: critical, warning, info (default: critical)
   --flux          Flux enrichment: auto, enabled, disabled (default: auto)
+  --detect-extras Detect extra resources not in Git (default: false)
 ```
 
 ### Exit Codes
