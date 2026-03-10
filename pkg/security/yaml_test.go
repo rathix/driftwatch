@@ -1,14 +1,15 @@
 package security
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestSafeYAMLDecode_RejectsOversized(t *testing.T) {
-	// 3MB of repeated "a: b\n"
+	// Generate input exceeding 10MB limit
 	chunk := "a: b\n"
-	repeated := strings.Repeat(chunk, 3*1024*1024/len(chunk)+1)
+	repeated := strings.Repeat(chunk, 11*1024*1024/len(chunk)+1)
 	data := []byte(repeated)
 
 	_, err := SafeYAMLDecode(data)
@@ -23,7 +24,7 @@ func TestSafeYAMLDecode_RejectsDeeplyNested(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		b.WriteString(strings.Repeat("  ", i))
 		b.WriteString("l")
-		b.WriteString(strings.Itoa(i))
+		b.WriteString(strconv.Itoa(i))
 		b.WriteString(":\n")
 	}
 	// Add a leaf value
