@@ -13,6 +13,7 @@ import (
 	"github.com/kennyandries/driftwatch/pkg/fetcher"
 	"github.com/kennyandries/driftwatch/pkg/flux"
 	"github.com/kennyandries/driftwatch/pkg/pipeline"
+	"github.com/kennyandries/driftwatch/pkg/progress"
 	"github.com/kennyandries/driftwatch/pkg/renderer"
 	"github.com/kennyandries/driftwatch/pkg/reporter"
 	"github.com/kennyandries/driftwatch/pkg/types"
@@ -89,7 +90,17 @@ var scanCmd = &cobra.Command{
 			return fmt.Errorf("invalid fail-on severity: %w", err)
 		}
 
+		// Create progress spinner (auto-disabled for JSON output or non-TTY)
+		var spin *progress.Spinner
+		if output == "json" {
+			spin = progress.NewSpinner(nil)
+		} else {
+			spin = progress.NewSpinner(os.Stderr)
+		}
+		defer spin.Stop()
+
 		// 4. Create k8s client (optional — handle missing kubeconfig gracefully)
+		spin.Update("Connecting to cluster...")
 		var dynClient dynamic.Interface
 		var resourceMapper fetcher.ResourceMapper
 
@@ -129,6 +140,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		// 5. Discover sources
+		spin.Update("Discovering sources...")
 		sources, err := disc.Discover(scanPath)
 		if err != nil {
 			return fmt.Errorf("discovery error: %w", err)
@@ -149,7 +161,8 @@ var scanCmd = &cobra.Command{
 		// 7. For each source, create renderer and run pipeline
 		var allResults []types.DriftResult
 
-		for _, src := range sources {
+		for i, src := range sources {
+			spin.Update(fmt.Sprintf("Scanning %s (%d/%d)...", filepath.Base(src.Path), i+1, len(sources)))
 			var r pipeline.RendererInterface
 			sourceInfo := types.SourceInfo{Path: src.Path}
 
@@ -192,6 +205,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		// 8. Flux enrichment
+		spin.Update("Enriching with Flux status...")
 		if dynClient != nil && (fluxMode == "enabled" || fluxMode == "auto") {
 			enricher := flux.NewEnricher(dynClient)
 			ctx := context.Background()
@@ -206,6 +220,9 @@ var scanCmd = &cobra.Command{
 
 		// 8b. Extras detection
 		detectExtras, _ := cmd.Flags().GetBool("detect-extras")
+		if detectExtras {
+			spin.Update("Detecting extras...")
+		}
 		if detectExtras && dynClient != nil {
 			// Use config values if available, otherwise use defaults
 			extrasExclude := config.DefaultExtrasExclude()
@@ -243,6 +260,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		// 9. Report
+		spin.Stop()
 		var rep reporter.Reporter
 		switch output {
 		case "json":
