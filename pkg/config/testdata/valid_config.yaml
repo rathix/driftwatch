@@ -1,0 +1,22 @@
+sources:
+  - path: ./infrastructure
+    type: kustomize
+  - path: ./apps
+    type: kustomize
+ignore:
+  fields:
+    - "metadata.managedFields"
+    - "metadata.resourceVersion"
+    - "status"
+  resources:
+    - kind: Secret
+severity:
+  critical:
+    - "spec.containers.*.image"
+    - "rules"
+  warning:
+    - "spec.replicas"
+cluster:
+  context: production
+flux:
+  enabled: true

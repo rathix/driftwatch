@@ -1,0 +1,3 @@
+sources:
+  - path: ./apps
+unknown_key: bad
