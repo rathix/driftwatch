@@ -172,9 +172,23 @@ Three detection layers run after the normal scan:
 
 | Layer | What it catches | Severity |
 |-|-|-|
-| Flux Inventory | Resources in Flux inventory but removed from Git (not pruned) | Critical |
+| Flux Inventory | Resources in Kustomization inventory but removed from Git (not pruned) | Critical |
 | Namespace Scan | Rogue `kubectl apply` in managed namespaces | Warning |
 | Namespace Audit | Entire namespaces not managed by any Flux resource | Warning |
+
+**Automatic filtering** reduces noise from expected resources:
+
+- **Helm-managed resources** — HelmRelease inventory items and resources with `app.kubernetes.io/managed-by: Helm` labels are automatically skipped (Helm charts generate resources not individually present in Git)
+- **Kubernetes auto-created resources** — `kube-root-ca.crt` ConfigMaps and `default` ServiceAccounts are skipped
+- **HelmRelease target namespaces** — namespaces referenced by `spec.targetNamespace` are treated as managed
+- **`ignoreNamespaces`** — excluded from both namespace scanning (Layer 2) and namespace audit (Layer 3)
+
+Skip counts are printed as summary lines:
+
+```
+Skipped 204 Helm-managed resources (inventory items from HelmReleases)
+Skipped 22 Kubernetes auto-created resources (kube-root-ca.crt, default ServiceAccount)
+```
 
 Configure exclusions in `driftwatch.yaml`:
 
