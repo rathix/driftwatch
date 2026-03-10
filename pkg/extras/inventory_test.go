@@ -91,26 +91,31 @@ func TestFluxInventoryCheck_NoExtras(t *testing.T) {
 
 func TestParseInventoryID(t *testing.T) {
 	tests := []struct {
-		id   string
-		want *types.ResourceIdentifier
+		id      string
+		version string
+		want    *types.ResourceIdentifier
 	}{
 		{
-			"default_nginx_apps_Deployment",
+			"default_nginx_apps_Deployment", "v1",
 			&types.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "default", Name: "nginx"},
 		},
 		{
-			"too_short",
+			"default_nginx__ConfigMap", "v1",
+			&types.ResourceIdentifier{APIVersion: "v1", Kind: "ConfigMap", Namespace: "default", Name: "nginx"},
+		},
+		{
+			"too_short", "v1",
 			nil,
 		},
 	}
 	for _, tt := range tests {
-		got := parseInventoryID(tt.id)
+		got := parseInventoryID(tt.id, tt.version)
 		if tt.want == nil && got != nil {
-			t.Errorf("parseInventoryID(%q) = %v, want nil", tt.id, got)
+			t.Errorf("parseInventoryID(%q, %q) = %v, want nil", tt.id, tt.version, got)
 		}
 		if tt.want != nil && got != nil {
 			if got.String() != tt.want.String() {
-				t.Errorf("parseInventoryID(%q) = %v, want %v", tt.id, got.String(), tt.want.String())
+				t.Errorf("parseInventoryID(%q, %q) = %v, want %v", tt.id, tt.version, got.String(), tt.want.String())
 			}
 		}
 	}

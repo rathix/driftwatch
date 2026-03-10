@@ -69,8 +69,12 @@ func (c *FluxInventoryChecker) checkInventory(obj *unstructured.Unstructured, ex
 		if id == "" {
 			continue
 		}
+		version, _ := e["v"].(string)
+		if version == "" {
+			version = "v1"
+		}
 
-		rid := parseInventoryID(id)
+		rid := parseInventoryID(id, version)
 		if rid == nil {
 			continue
 		}
@@ -97,7 +101,8 @@ func (c *FluxInventoryChecker) checkInventory(obj *unstructured.Unstructured, ex
 
 // parseInventoryID parses Flux inventory ID format: "namespace_name_group_Kind"
 // Example: "default_nginx_apps_Deployment"
-func parseInventoryID(id string) *types.ResourceIdentifier {
+// version comes from the "v" field of the inventory entry.
+func parseInventoryID(id, version string) *types.ResourceIdentifier {
 	parts := strings.Split(id, "_")
 	if len(parts) < 4 {
 		return nil
@@ -107,11 +112,11 @@ func parseInventoryID(id string) *types.ResourceIdentifier {
 	group := parts[2]
 	kind := parts[3]
 
-	apiVersion := group
-	if apiVersion == "" {
-		apiVersion = "v1"
+	var apiVersion string
+	if group == "" {
+		apiVersion = version
 	} else {
-		apiVersion = group + "/v1"
+		apiVersion = group + "/" + version
 	}
 
 	return &types.ResourceIdentifier{
